@@ -134,6 +134,7 @@ func (writer *streamKeepAliveWriter) keepAlive(ctx context.Context, interval tim
 	}
 }
 
+// FlushWriter 刷新流输出并传递写入错误，排空期间跳过刷新。
 func FlushWriter(c *gin.Context) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -142,6 +143,10 @@ func FlushWriter(c *gin.Context) (err error) {
 	}()
 
 	if c == nil || c.Writer == nil {
+		return nil
+	}
+
+	if ClientGoneButDraining(c) {
 		return nil
 	}
 
@@ -219,7 +224,12 @@ func ClaudeChunkData(c *gin.Context, resp dto.ClaudeResponse, data string) {
 	_ = FlushWriter(c)
 }
 
+// ResponseChunkData 输出 Responses 流事件，排空期间继续收集用量而不写入下游。
 func ResponseChunkData(c *gin.Context, resp dto.ResponsesStreamResponse, data string) error {
+	if ClientGoneButDraining(c) {
+		return nil
+	}
+
 	if requestContextDone(c) {
 		return fmt.Errorf("request context done: %w", c.Request.Context().Err())
 	}
@@ -235,9 +245,14 @@ func ResponseChunkData(c *gin.Context, resp dto.ResponsesStreamResponse, data st
 	return FlushWriter(c)
 }
 
+// StringData 输出 SSE 数据，排空期间跳过下游写入。
 func StringData(c *gin.Context, str string) error {
 	if c == nil || c.Writer == nil {
 		return errors.New("context or writer is nil")
+	}
+
+	if ClientGoneButDraining(c) {
+		return nil
 	}
 
 	if requestContextDone(c) {
@@ -248,9 +263,14 @@ func StringData(c *gin.Context, str string) error {
 	return FlushWriter(c)
 }
 
+// PingData 发送流心跳，排空期间跳过下游写入。
 func PingData(c *gin.Context) error {
 	if c == nil || c.Writer == nil {
 		return errors.New("context or writer is nil")
+	}
+
+	if ClientGoneButDraining(c) {
+		return nil
 	}
 
 	if requestContextDone(c) {

@@ -208,6 +208,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		return false
 	}
 
+	// 输出 Gemini 流事件，排空期间仅继续处理上游数据。
 	sendGeminiResponse := func(geminiResponse *dto.GeminiChatResponse) bool {
 		if geminiResponse == nil {
 			return true
@@ -216,6 +217,9 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		if err != nil {
 			streamErr = types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
 			return false
+		}
+		if helper.ClientGoneButDraining(c) {
+			return true
 		}
 		c.Render(-1, common.CustomEvent{Data: "data: " + string(geminiResponseStr)})
 		_ = helper.FlushWriter(c)

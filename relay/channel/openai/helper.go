@@ -100,7 +100,11 @@ func chatToGeminiStreamState(info *relaycommon.RelayInfo, streamResponse *dto.Ch
 	return state, nil
 }
 
+// sendGeminiStreamResults 输出转换后的 Gemini 流事件，排空期间跳过下游写入。
 func sendGeminiStreamResults(c *gin.Context, results []relayconvert.ResponseResult) error {
+	if helper.ClientGoneButDraining(c) {
+		return nil
+	}
 	for _, result := range results {
 		geminiResponse, ok := result.Value.(*dto.GeminiChatResponse)
 		if !ok {
